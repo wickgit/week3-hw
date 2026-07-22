@@ -1,11 +1,11 @@
 import bcrypt from 'bcryptjs';
 
 export async function seed(knex) {
-  await knex('enrollments').del();
-  await knex('students').del();
-  await knex('courses').del();
-  await knex('schools').del();
-  await knex('users').del();
+  // RESTART IDENTITY keeps ids deterministic across re-seeds, which the demo
+  // scenario and the API tests both rely on.
+  await knex.raw(
+    'TRUNCATE enrollments, students, courses, schools, users RESTART IDENTITY CASCADE',
+  );
 
   const password_hash = await bcrypt.hash('admin123', 10);
   await knex('users').insert({
