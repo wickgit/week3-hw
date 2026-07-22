@@ -1,6 +1,11 @@
 import express from 'express';
 
 import authRoutes from './routes/auth.js';
+import courseRoutes from './routes/courses.js';
+import enrollmentRoutes from './routes/enrollments.js';
+import schoolRoutes from './routes/schools.js';
+import studentRoutes from './routes/students.js';
+import { requireAuth } from './auth/middleware.js';
 import { errorHandler, notFoundHandler } from './lib/errors.js';
 
 export function createApp() {
@@ -10,6 +15,11 @@ export function createApp() {
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
   app.use('/auth', authRoutes);
+
+  app.use('/schools', requireAuth, schoolRoutes);
+  app.use('/courses', requireAuth, courseRoutes);
+  app.use('/students', requireAuth, studentRoutes);
+  app.use('/enrollments', requireAuth, enrollmentRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
