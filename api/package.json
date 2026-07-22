@@ -1,0 +1,17 @@
+{
+  "name": "education-crm-api",
+  "version": "1.0.0",
+  "description": "AI-Native Education CRM backend (Express + Knex + Postgres)",
+  "type": "module",
+  "scripts": {
+    "migrate": "knex migrate:latest",
+    "rollback": "knex migrate:rollback",
+    "seed": "knex seed:run"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "knex": "^3.1.0",
+    "pg": "^8.12.0"
+  }
+}
