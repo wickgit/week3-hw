@@ -24,3 +24,4 @@ function validate(source, schema) {
 
 export const validateBody = (schema) => validate('body', schema);
 export const validateQuery = (schema) => validate('query', schema);
+export const validateParams = (schema) => validate('params', schema);
