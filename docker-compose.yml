@@ -16,5 +16,17 @@ services:
       timeout: 5s
       retries: 10
 
+  agent:
+    build: ./agent
+    container_name: education-crm-agent
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in your shell or a root .env}
+      MAX_AGENT_STEPS: ${MAX_AGENT_STEPS:-12}
+      TOOL_TIMEOUT_SECONDS: ${TOOL_TIMEOUT_SECONDS:-20}
+      TRACE_LOG: /logs/trace.jsonl
+    volumes:
+      - ./agent:/app
+      - ./logs:/logs
+
 volumes:
   pgdata:
