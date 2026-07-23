@@ -307,7 +307,6 @@ def chat_loop(agent) -> None:
         try:
             answer, history = run_once(agent, prompt, history)
             print(f"\n{answer}\n")
-            print(f"({steps_used()} tool calls — see logs/trace.jsonl)\n")
         except GuardrailError as exc:
             print(f"\n[guardrail] {exc}\n")
         except Exception as exc:
@@ -360,18 +359,16 @@ def main() -> None:
         reset_log()
 
     agent = build_agent(use_api=use_api)
-    mode = "API" if use_api else "mock"
+
+    if args.mock:
+        print("Using mock data.\n")
 
     if args.chat:
-        print(f"({mode} mode)")
         chat_loop(agent)
         return
 
-    print(f"[{mode} mode] > {args.prompt}\n")
     answer, _ = run_once(agent, args.prompt, None)
-    print("--- answer ---\n")
     print(answer)
-    print(f"\n({steps_used()} tool calls — see logs/trace.jsonl)")
 
 
 if __name__ == "__main__":
