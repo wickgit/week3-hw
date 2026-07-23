@@ -9,7 +9,7 @@ if (process.env.NODE_ENV !== 'test') {
   throw new Error('Tests must run with NODE_ENV=test — use `npm test`');
 }
 
-export const app = createApp();
+export const app = await createApp();
 export { db, request };
 
 export const ADMIN = { email: 'admin@school.example', password: 'admin123' };
