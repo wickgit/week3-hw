@@ -28,14 +28,20 @@ _step = 0
 # needs a lock or concurrent calls end up sharing a step number.
 _step_lock = threading.Lock()
 
+# The step budget is per turn, so steps restart each turn. The trace needs a turn
+# number to stay readable across a multi-turn chat session.
+_turn = 0
+
 # Set to the api_crm module in API mode so traces can carry HTTP statuses.
 _status_source = None
 
 
-def reset_steps() -> None:
-    global _step
+def start_turn() -> None:
+    """Reset the per-turn step budget and mark a new turn in the trace."""
+    global _step, _turn
     with _step_lock:
         _step = 0
+        _turn += 1
 
 
 def steps_used() -> int:
@@ -76,6 +82,7 @@ def guarded(name: str, fn):
                 error=str(exc),
                 duration_ms=elapsed(),
                 http_status=getattr(exc, "status", None),
+                turn=_turn,
             )
             raise
 
@@ -86,6 +93,7 @@ def guarded(name: str, fn):
             result=result,
             duration_ms=elapsed(),
             http_status=status,
+            turn=_turn,
         )
         return result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
 
@@ -281,7 +289,7 @@ def build_agent(use_api: bool = False):
 def run_once(agent, prompt: str, history: list | None):
     from agents import Runner
 
-    reset_steps()
+    start_turn()
     agent_input = (history + [{"role": "user", "content": prompt}]) if history else prompt
     result = Runner.run_sync(agent, agent_input)
     return result.final_output, result.to_input_list()
