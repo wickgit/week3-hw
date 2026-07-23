@@ -122,19 +122,11 @@ def search_students(query: str):
 
 
 def get_school(school_id: int):
-    schools = _request("GET", "/schools")
-    for school in schools:
-        if school["id"] == school_id:
-            return school
-    raise ApiError(f"No school with id {school_id}", 404)
+    return _request("GET", f"/schools/{school_id}")
 
 
 def get_course(course_id: int):
-    courses = _request("GET", "/courses")
-    for course in courses:
-        if course["id"] == course_id:
-            return course
-    raise ApiError(f"No course with id {course_id}", 404)
+    return _request("GET", f"/courses/{course_id}")
 
 
 def get_student(student_id: int):

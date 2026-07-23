@@ -96,7 +96,7 @@ def build_agent(use_api: bool = False):
     global _status_source
 
     try:
-        from agents import Agent, function_tool
+        from agents import Agent, ModelSettings, function_tool
     except ImportError:
         print("Dependencies missing. Build the image: docker compose build agent", file=sys.stderr)
         sys.exit(1)
@@ -257,12 +257,10 @@ def build_agent(use_api: bool = False):
             "the response: a course and a student both need a school_id, and an enrollment "
             "needs the student_id and course_id you just created. A student can only be "
             "enrolled in a course from their own school.\n"
-            "Make create calls ONE AT A TIME and wait for each result before the next one. "
-            "Never issue two creates in the same turn: a course and a student need the "
-            "school_id from the school you just created, and an enrollment needs the "
-            "student_id and course_id from the two creates before it. Never guess an id or "
-            "reuse one from an earlier request — always take it from the response you just "
-            "received.\n"
+            "Create the parent first and take the id from its response: a course and a "
+            "student need the school_id of the school you just created, and an enrollment "
+            "needs the student_id and course_id from the creates before it. Never guess an "
+            "id or reuse one from an earlier request.\n"
             "Create each record exactly once per request. If a create fails because the "
             "record already exists, search for it and carry on with the id you find "
             "instead of retrying the create.\n"
@@ -270,7 +268,14 @@ def build_agent(use_api: bool = False):
 
     instructions += max_steps_instruction()
 
-    return Agent(name="Education CRM Agent", instructions=instructions, tools=tools)
+    return Agent(
+        name="Education CRM Agent",
+        instructions=instructions,
+        tools=tools,
+        # Dependent creates need the id from the previous response, and calls
+        # dispatched together cannot see each other's results.
+        model_settings=ModelSettings(parallel_tool_calls=False),
+    )
 
 
 def run_once(agent, prompt: str, history: list | None):
