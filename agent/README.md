@@ -13,20 +13,53 @@ Everything runs in Docker. The agent reads `OPENAI_API_KEY` from your shell.
 ```bash
 export OPENAI_API_KEY=sk-...
 docker compose build
-cd api && npm run seed && cd ..
+docker compose up -d db api                    # start the API the agent talks to
+docker compose exec api npm run migrate
+docker compose exec api npm run seed
 ```
 
-Compose starts the database and API on demand, so you only need the seed once.
+You only need the migrate and seed once. Mock mode (`--mock`) needs none of this — just
+the key.
 
-## Running
+## Commands
+
+Everything is `docker compose run --rm agent` followed by an optional prompt and flags.
 
 ```bash
-docker compose run --rm agent
-docker compose run --rm agent "Which students are enrolled in Intro to Python?"
-docker compose run --rm agent --chat
-
-docker compose run --rm agent "Onboard a new school: create Nova Tech Academy in Odesa, add a course 'Intro to Go' in Computer Science worth 6 credits, add student Ivan Petrenko (ivan@nova.example), enrol him in that course, then show a summary."
+docker compose run --rm agent                                     # runs a default example
+docker compose run --rm agent "Which students take Intro to Python?"
+docker compose run --rm agent --chat                             # interactive session
+docker compose run --rm agent --mock "list all schools"          # in-memory data
+docker compose run --rm agent --keep-log "..."                   # append to the trace
+docker compose run --rm -q agent "..."                           # -q hides Docker's own output
+MAX_AGENT_STEPS=2 docker compose run --rm agent "..."            # override a setting
 ```
+
+### Flags
+
+| | |
+|---|---|
+| `"<prompt>"` | the request; omit it to run a default example |
+| `--chat` | interactive session that keeps context between turns (`exit`/`quit`/`q` to leave) |
+| `--mock` | use in-memory data instead of the API — read-only, no database, no create tools |
+| `--keep-log` | append to the trace instead of clearing it at the start of the run |
+
+### Environment
+
+Set in the shell (or in a `.env` next to `docker-compose.yml`). Compose supplies
+sensible defaults for everything except the key.
+
+| Variable | Default | |
+|---|---|---|
+| `OPENAI_API_KEY` | — | required |
+| `MAX_AGENT_STEPS` | 12 | tool-call budget per turn |
+| `TOOL_TIMEOUT_SECONDS` | 20 | outer timeout on any tool |
+| `HTTP_TIMEOUT_SECONDS` | 10 | timeout on an API call |
+| `CRM_API_URL` | http://api:3000 | where the API lives |
+| `CRM_USER_EMAIL` | admin@school.example | login used under the hood |
+| `CRM_USER_PASSWORD` | admin123 | |
+
+## How it runs
 
 `--chat` keeps context between turns. If the API is down or the CRM is empty, the agent
 says so and exits instead of answering from nothing.
@@ -37,14 +70,8 @@ reuses the token. The model never sees it. A 401 mid-run triggers one re-login a
 Re-running the onboarding brief is safe. Schools are unique on `(name, city)`, so the
 second run gets a 409, searches for what already exists and continues with those ids.
 
-## Mock mode
-
-```bash
-docker compose run --rm agent --mock
-docker compose run --rm agent --mock "Which students are enrolled in Intro to Python?"
-```
-
-Read-only, no database or API required.
+The capstone (`capstone.py`) runs the onboarding brief and verifies the result; run it
+with `docker compose run --rm capstone` (see the root README).
 
 ## Example chains
 
