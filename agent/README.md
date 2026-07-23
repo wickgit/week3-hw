@@ -1,90 +1,106 @@
 # Education CRM Agent
 
-An agent over the education CRM domain (schools, courses, students, enrollments).
-It runs a real agent loop: it picks tools, feeds ids from one call into the next,
-and stops when it can answer.
+Agent over the education CRM (schools, courses, students, enrollments). It picks
+its own tools, passes ids from one call into the next, and stops when it can answer.
 
-This milestone runs against in-memory mock data (`tools/mock_crm.py`). The next one
-swaps those tools for the REST API.
+It talks to the real CRM API (`tools/api_crm.py`). `--mock` swaps in in-memory data
+(`tools/mock_crm.py`), which needs no database and has no create tools.
+
+## Setup
+
+Everything runs in Docker. The agent reads `OPENAI_API_KEY` from your shell.
+
+```bash
+export OPENAI_API_KEY=sk-...
+docker compose build
+cd api && npm run seed && cd ..
+```
+
+Compose starts the database and API on demand, so you only need the seed once.
 
 ## Running
 
-The agent runs in Docker, so nothing needs installing locally. It reads
-`OPENAI_API_KEY` from your shell.
-
-```bash
-export OPENAI_API_KEY=sk-...        # or put it in a .env next to docker-compose.yml
-docker compose build agent
-```
-
-Default scenario:
-
 ```bash
 docker compose run --rm agent
-```
-
-Your own request:
-
-```bash
 docker compose run --rm agent "Which students are enrolled in Intro to Python?"
-```
-
-Interactive session, which keeps context between turns:
-
-```bash
 docker compose run --rm agent --chat
+
+docker compose run --rm agent "Onboard a new school: create Nova Tech Academy in Odesa, add a course 'Intro to Go' in Computer Science worth 6 credits, add student Ivan Petrenko (ivan@nova.example), enrol him in that course, then show a summary."
 ```
 
-## Example requests
+`--chat` keeps context between turns. If the API is down or the CRM is empty, the agent
+says so and exits instead of answering from nothing.
+
+The agent logs in with `CRM_USER_EMAIL` / `CRM_USER_PASSWORD` on its first call and
+reuses the token. The model never sees it. A 401 mid-run triggers one re-login and retry.
+
+Re-running the onboarding brief is safe. Schools are unique on `(name, city)`, so the
+second run gets a 409, searches for what already exists and continues with those ids.
+
+## Mock mode
 
 ```bash
-docker compose run --rm agent "Find Bright Future Academy, list its courses and students, then draft an enrollment summary for Olena Kovalenko."
+docker compose run --rm agent --mock
+docker compose run --rm agent --mock "Which students are enrolled in Intro to Python?"
 ```
-Chains eight calls: `search_schools` → `get_school_courses` + `get_school_students`
-→ `search_students` → `get_student_enrollments` → `get_course` per enrollment →
-`draft_enrollment_summary`.
 
-```bash
-docker compose run --rm agent "Which students are enrolled in Intro to Python, and what are their emails?"
+Read-only, no database or API required.
+
+## Example chains
+
+`"Find Bright Future Academy, list its courses and students, then draft an enrollment
+summary for Olena Kovalenko."`
+
 ```
-Chains four: `search_courses` → `get_course_enrollments` → `get_student` per row.
+search_schools → get_school_courses → get_school_students → search_students
+→ get_student_enrollments → get_course (per enrollment) → draft_enrollment_summary
+```
+
+`"Which students are enrolled in Intro to Python, and what are their emails?"`
+
+```
+search_courses → get_course_enrollments → get_student (per row)
+```
 
 ## Tools
 
-Deliberately small, so the agent has to compose them and the trace shows real
-reasoning rather than one opaque call.
+**search** `list_schools` `search_schools` `search_courses` `search_students`
+**read** `get_school` `get_course` `get_student`
+**relations** `get_school_courses` `get_school_students` `get_student_enrollments` `get_course_enrollments`
+**draft** `draft_enrollment_summary` `draft_welcome_email`
+**create** (not in `--mock`) `create_school` `create_course` `create_student` `create_enrollment`
 
-| | |
-|---|---|
-| search / list | `list_schools`, `search_schools`, `search_courses`, `search_students` |
-| read one | `get_school`, `get_course`, `get_student` |
-| read relations | `get_school_courses`, `get_school_students`, `get_student_enrollments`, `get_course_enrollments` |
-| draft | `draft_enrollment_summary`, `draft_welcome_email` |
+Tools are small on purpose. Enrollment rows only carry `course_id` and `student_id`,
+so the agent has to look the names up itself instead of getting everything from one call.
 
-Enrollment rows carry only `course_id` and `student_id`, so the agent has to look
-up the names itself — that is what forces the multi-step chain.
+Both tool modules expose the same function names, so switching modes only changes
+which one gets imported.
+
+Parallel tool calls are turned off (`parallel_tool_calls=False`). Calls dispatched in
+the same turn can't see each other's results, so a course created alongside its school
+ends up with a guessed `school_id`.
 
 ## Guardrails
 
-| Guardrail | Setting | Behaviour |
-|---|---|---|
-| Step budget | `MAX_AGENT_STEPS` (12) | Calls past the limit are refused, and the agent answers with what it has |
-| Tool allowlist | `ALLOWED_TOOLS` in `guardrails.py` | Anything not listed is refused before it runs |
-| Tool timeout | `TOOL_TIMEOUT_SECONDS` (20) | A call that overruns is abandoned rather than stalling the run |
-
-Try the budget:
+| | Env var | Default | |
+|---|---|---|---|
+| Step budget | `MAX_AGENT_STEPS` | 12 | Extra calls are refused; the agent answers with what it has |
+| Allowlist | — | `guardrails.py` | Unlisted tools are refused before running |
+| Tool timeout | `TOOL_TIMEOUT_SECONDS` | 20 | Stops waiting on a slow call |
+| HTTP timeout | `HTTP_TIMEOUT_SECONDS` | 10 | Cancels the request itself, which the thread timeout can't |
 
 ```bash
-MAX_AGENT_STEPS=2 docker compose run --rm agent
+MAX_AGENT_STEPS=2 docker compose run --rm agent    # trips the budget
 ```
 
 ## Trace
 
-Every tool call appends a line to `logs/trace.jsonl` — step, tool, arguments,
-result or error, and duration. Blocked calls are recorded too, with the guardrail
-that stopped them. The log is truncated at the start of each run; pass `--keep-log`
-to append instead.
+Each tool call appends a line to `logs/trace.jsonl`: step, tool, args, result or error,
+duration, and `http_status` in API mode. Refused calls are logged with the guardrail
+that stopped them.
 
 ```bash
-cat logs/trace.jsonl | head -3
+head -3 logs/trace.jsonl
 ```
+
+The log is cleared at the start of each run. Use `--keep-log` to append.

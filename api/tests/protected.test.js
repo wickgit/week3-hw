@@ -71,4 +71,23 @@ describe('protected read endpoints', () => {
     assert.equal(res.status, 404);
     assert.equal(res.body.error, 'not_found');
   });
+
+  it('reads a single school and course by id', async () => {
+    const school = await authed(request(app).get('/schools/1'), token);
+    assert.equal(school.status, 200);
+    assert.equal(school.body.data.name, 'Bright Future Academy');
+
+    const course = await authed(request(app).get('/courses/1'), token);
+    assert.equal(course.status, 200);
+    assert.equal(course.body.data.title, 'Intro to Python');
+    assert.equal(course.body.data.school_id, 1);
+  });
+
+  it('returns 404 for a school or course that does not exist', async () => {
+    const school = await authed(request(app).get('/schools/9999'), token);
+    assert.equal(school.status, 404);
+
+    const course = await authed(request(app).get('/courses/9999'), token);
+    assert.equal(course.status, 404);
+  });
 });

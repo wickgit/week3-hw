@@ -28,9 +28,11 @@ def log_step(
     error: str | None = None,
     duration_ms: float | None = None,
     http_status: int | None = None,
+    turn: int | None = None,
 ) -> None:
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
+        "turn": turn,
         "step": step,
         "tool": tool,
         "args": args,

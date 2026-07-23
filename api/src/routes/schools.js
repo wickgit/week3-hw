@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { db } from '../db.js';
-import { validateBody, validateQuery } from '../lib/validate.js';
+import { ApiError } from '../lib/errors.js';
+import { assertExists, idParam, isUniqueViolation } from '../lib/resources.js';
+import { validateBody, validateParams, validateQuery } from '../lib/validate.js';
 
 const router = Router();
 
@@ -28,9 +30,25 @@ router.get('/', validateQuery(listQuery), async (req, res) => {
   res.json({ data: await query });
 });
 
-router.post('/', validateBody(createBody), async (req, res) => {
-  const [school] = await db('schools').insert(req.validated.body).returning('*');
-  res.status(201).json({ data: school });
+router.get('/:id', validateParams(idParam), async (req, res) => {
+  const school = await assertExists('schools', req.validated.params.id, 'School');
+  res.json({ data: school });
+});
+
+router.post('/', validateBody(createBody), async (req, res, next) => {
+  const body = req.validated.body;
+
+  try {
+    const [school] = await db('schools').insert(body).returning('*');
+    res.status(201).json({ data: school });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return next(
+        ApiError.conflict(`School "${body.name}" already exists in ${body.city ?? 'this city'}`),
+      );
+    }
+    throw err;
+  }
 });
 
 export default router;

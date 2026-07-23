@@ -89,6 +89,29 @@ describe('create endpoints', () => {
     assert.equal(rows.length, 1, 'the duplicate must not be stored');
   });
 
+  it('returns 409 for a school with the same name in the same city', async () => {
+    const payload = { name: 'Duplicate Academy', city: 'Kyiv' };
+
+    const first = await authed(json(request(app).post('/schools')), token).send(payload);
+    assert.equal(first.status, 201);
+
+    const second = await authed(json(request(app).post('/schools')), token).send(payload);
+    assert.equal(second.status, 409);
+    assert.equal(second.body.error, 'conflict');
+
+    const rows = await db('schools').where(payload);
+    assert.equal(rows.length, 1, 'the duplicate must not be stored');
+  });
+
+  it('allows the same school name in a different city', async () => {
+    const res = await authed(json(request(app).post('/schools')), token).send({
+      name: 'Duplicate Academy',
+      city: 'Lviv',
+    });
+
+    assert.equal(res.status, 201);
+  });
+
   it('returns 404 when the parent school does not exist', async () => {
     const res = await authed(json(request(app).post('/courses')), token).send({
       school_id: 9999,
