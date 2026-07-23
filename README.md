@@ -56,6 +56,31 @@ docker compose run --rm agent --mock "..."      # in-memory data, no database
 
 See [agent/README.md](agent/README.md) for tools, guardrails and the trace format.
 
+## GraphQL
+
+A GraphQL endpoint sits alongside REST at `POST /graphql`, over the same schema and
+JWT. `login` is public and returns the same token as `/auth/login`; every other query
+and mutation needs a `Bearer` token, and an unauthenticated request returns an
+`UNAUTHENTICATED` error.
+
+Log in:
+
+```bash
+curl -s -X POST localhost:3000/graphql -H 'Content-Type: application/json' \
+  -d '{"query":"mutation { login(email:\"admin@school.example\", password:\"admin123\") { token } }"}'
+```
+
+Nested query — one request walks school → courses → enrollments → student:
+
+```bash
+curl -s -X POST localhost:3000/graphql \
+  -H 'Content-Type: application/json' -H "Authorization: Bearer <token>" \
+  -d '{"query":"{ school(id:1){ name courses { title enrollments { status student { full_name } } } } }"}'
+```
+
+Relations are batched with DataLoader, so resolving a field across many parents runs
+one query rather than one per parent (no N+1).
+
 ## Capstone
 
 One command runs the onboarding brief end to end and verifies the result against the
