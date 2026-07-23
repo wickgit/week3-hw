@@ -24,6 +24,10 @@ ALLOWED_TOOLS = {
     "get_course_enrollments",
     "draft_enrollment_summary",
     "draft_welcome_email",
+    "create_school",
+    "create_course",
+    "create_student",
+    "create_enrollment",
 }
 
 
