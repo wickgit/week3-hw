@@ -7,8 +7,9 @@ import schoolRoutes from './routes/schools.js';
 import studentRoutes from './routes/students.js';
 import { requireAuth } from './auth/middleware.js';
 import { errorHandler, notFoundHandler } from './lib/errors.js';
+import { mountGraphql } from './graphql/index.js';
 
-export function createApp() {
+export async function createApp() {
   const app = express();
 
   app.use(express.json());
@@ -20,6 +21,10 @@ export function createApp() {
   app.use('/courses', requireAuth, courseRoutes);
   app.use('/students', requireAuth, studentRoutes);
   app.use('/enrollments', requireAuth, enrollmentRoutes);
+
+  // GraphQL is mounted before the REST 404/error handlers so those do not
+  // swallow /graphql requests.
+  await mountGraphql(app, '/graphql');
 
   app.use(notFoundHandler);
   app.use(errorHandler);
