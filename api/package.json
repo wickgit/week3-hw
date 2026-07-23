@@ -1,0 +1,30 @@
+{
+  "name": "education-crm-api",
+  "version": "1.0.0",
+  "description": "AI-Native Education CRM backend (Express + Knex + Postgres)",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "knex migrate:latest",
+    "rollback": "knex migrate:rollback",
+    "seed": "knex seed:run",
+    "test": "NODE_ENV=test node --test --test-concurrency=1 tests/*.test.js"
+  },
+  "dependencies": {
+    "@apollo/server": "^5.5.1",
+    "@as-integrations/express5": "^1.1.2",
+    "bcryptjs": "^2.4.3",
+    "dataloader": "^2.2.3",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "graphql": "^16.14.2",
+    "jsonwebtoken": "^9.0.3",
+    "knex": "^3.1.0",
+    "pg": "^8.12.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2"
+  }
+}

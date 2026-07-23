@@ -1,0 +1,78 @@
+services:
+  db:
+    image: postgres:16
+    container_name: education-crm-db
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm
+      POSTGRES_DB: education_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d education_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./api
+    container_name: education-crm-api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://crm:crm@db:5432/education_crm
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  capstone:
+    build: ./agent
+    profiles: ["tools"]
+    entrypoint: ["python", "capstone.py"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in your shell or a root .env}
+      CRM_API_URL: ${CRM_API_URL:-http://api:3000}
+      CRM_USER_EMAIL: ${CRM_USER_EMAIL:-admin@school.example}
+      CRM_USER_PASSWORD: ${CRM_USER_PASSWORD:-admin123}
+      DATABASE_URL: postgres://crm:crm@db:5432/education_crm
+      TRACE_LOG: /logs/trace.jsonl
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./agent:/app
+      - ./logs:/logs
+
+  agent:
+    build: ./agent
+    container_name: education-crm-agent
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in your shell or a root .env}
+      MAX_AGENT_STEPS: ${MAX_AGENT_STEPS:-12}
+      TOOL_TIMEOUT_SECONDS: ${TOOL_TIMEOUT_SECONDS:-20}
+      TRACE_LOG: /logs/trace.jsonl
+      CRM_API_URL: ${CRM_API_URL:-http://api:3000}
+      CRM_USER_EMAIL: ${CRM_USER_EMAIL:-admin@school.example}
+      CRM_USER_PASSWORD: ${CRM_USER_PASSWORD:-admin123}
+      # Read-only, and only used by capstone.py to verify what the agent wrote.
+      DATABASE_URL: postgres://crm:crm@db:5432/education_crm
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./agent:/app
+      - ./logs:/logs
+
+volumes:
+  pgdata:
