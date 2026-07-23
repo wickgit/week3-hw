@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { db } from '../db.js';
-import { assertExists, foreignKey } from '../lib/resources.js';
-import { validateBody, validateQuery } from '../lib/validate.js';
+import { assertExists, foreignKey, idParam } from '../lib/resources.js';
+import { validateBody, validateParams, validateQuery } from '../lib/validate.js';
 
 const router = Router();
 
@@ -31,6 +31,11 @@ router.get('/', validateQuery(listQuery), async (req, res) => {
   }
 
   res.json({ data: await query });
+});
+
+router.get('/:id', validateParams(idParam), async (req, res) => {
+  const course = await assertExists('courses', req.validated.params.id, 'Course');
+  res.json({ data: course });
 });
 
 router.post('/', validateBody(createBody), async (req, res) => {
