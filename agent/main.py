@@ -314,6 +314,22 @@ def chat_loop(agent) -> None:
             print(f"\n[error] {exc}\n")
 
 
+def check_api_ready() -> None:
+    """Fail with a usable message instead of letting the agent answer from an empty CRM."""
+    from tools import api_crm
+
+    try:
+        schools = api_crm.list_schools()
+    except Exception as exc:
+        print(f"Cannot reach the CRM API at {api_crm.base_url()}: {exc}", file=sys.stderr)
+        print("Start it with: docker compose up -d db api", file=sys.stderr)
+        sys.exit(1)
+
+    if not schools:
+        print("The CRM has no schools. Load the demo data with: cd api && npm run seed", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Education CRM agent")
     parser.add_argument(
@@ -325,9 +341,9 @@ def main() -> None:
     parser.add_argument("--chat", action="store_true", help="interactive session")
     parser.add_argument("--keep-log", action="store_true", help="append to the existing trace")
     parser.add_argument(
-        "--use-api",
+        "--mock",
         action="store_true",
-        help="use the real CRM API instead of mock data, and enable the create tools",
+        help="use in-memory mock data instead of the CRM API (read-only, no database needed)",
     )
     args = parser.parse_args()
 
@@ -335,11 +351,16 @@ def main() -> None:
         print("OPENAI_API_KEY is not set", file=sys.stderr)
         sys.exit(1)
 
+    use_api = not args.mock
+
+    if use_api:
+        check_api_ready()
+
     if not args.keep_log:
         reset_log()
 
-    agent = build_agent(use_api=args.use_api)
-    mode = "API" if args.use_api else "mock"
+    agent = build_agent(use_api=use_api)
+    mode = "API" if use_api else "mock"
 
     if args.chat:
         print(f"({mode} mode)")

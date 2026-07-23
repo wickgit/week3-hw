@@ -3,8 +3,8 @@
 Agent over the education CRM (schools, courses, students, enrollments). It picks
 its own tools, passes ids from one call into the next, and stops when it can answer.
 
-Two modes: mock data by default (`tools/mock_crm.py`), or the real API with
-`--use-api` (`tools/api_crm.py`), which also enables the create tools.
+It talks to the real CRM API (`tools/api_crm.py`). `--mock` swaps in in-memory data
+(`tools/mock_crm.py`), which needs no database and has no create tools.
 
 ## Setup
 
@@ -13,38 +13,38 @@ Everything runs in Docker. The agent reads `OPENAI_API_KEY` from your shell.
 ```bash
 export OPENAI_API_KEY=sk-...
 docker compose build
+cd api && npm run seed && cd ..
 ```
 
-## Mock mode
+Compose starts the database and API on demand, so you only need the seed once.
+
+## Running
 
 ```bash
 docker compose run --rm agent
 docker compose run --rm agent "Which students are enrolled in Intro to Python?"
 docker compose run --rm agent --chat
+
+docker compose run --rm agent "Onboard a new school: create Nova Tech Academy in Odesa, add a course 'Intro to Go' in Computer Science worth 6 credits, add student Ivan Petrenko (ivan@nova.example), enrol him in that course, then show a summary."
 ```
 
-`--chat` keeps context between turns.
-
-## API mode
-
-Start the database and API first:
-
-```bash
-docker compose up -d db api
-cd api && npm run seed && cd ..
-```
-
-```bash
-docker compose run --rm agent --use-api "Which students are enrolled in Intro to Python?"
-
-docker compose run --rm agent --use-api "Onboard a new school: create Nova Tech Academy in Odesa, add a course 'Intro to Go' in Computer Science worth 6 credits, add student Ivan Petrenko (ivan@nova.example), enrol him in that course, then show a summary."
-```
+`--chat` keeps context between turns. If the API is down or the CRM is empty, the agent
+says so and exits instead of answering from nothing.
 
 The agent logs in with `CRM_USER_EMAIL` / `CRM_USER_PASSWORD` on its first call and
 reuses the token. The model never sees it. A 401 mid-run triggers one re-login and retry.
 
 Re-running the onboarding brief is safe. Schools are unique on `(name, city)`, so the
 second run gets a 409, searches for what already exists and continues with those ids.
+
+## Mock mode
+
+```bash
+docker compose run --rm agent --mock
+docker compose run --rm agent --mock "Which students are enrolled in Intro to Python?"
+```
+
+Read-only, no database or API required.
 
 ## Example chains
 
@@ -68,7 +68,7 @@ search_courses → get_course_enrollments → get_student (per row)
 **read** `get_school` `get_course` `get_student`
 **relations** `get_school_courses` `get_school_students` `get_student_enrollments` `get_course_enrollments`
 **draft** `draft_enrollment_summary` `draft_welcome_email`
-**create** (API mode) `create_school` `create_course` `create_student` `create_enrollment`
+**create** (not in `--mock`) `create_school` `create_course` `create_student` `create_enrollment`
 
 Tools are small on purpose. Enrollment rows only carry `course_id` and `student_id`,
 so the agent has to look the names up itself instead of getting everything from one call.
