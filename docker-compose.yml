@@ -36,6 +36,24 @@ services:
       timeout: 5s
       retries: 10
 
+  capstone:
+    build: ./agent
+    profiles: ["tools"]
+    entrypoint: ["python", "capstone.py"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in your shell or a root .env}
+      CRM_API_URL: ${CRM_API_URL:-http://api:3000}
+      CRM_USER_EMAIL: ${CRM_USER_EMAIL:-admin@school.example}
+      CRM_USER_PASSWORD: ${CRM_USER_PASSWORD:-admin123}
+      DATABASE_URL: postgres://crm:crm@db:5432/education_crm
+      TRACE_LOG: /logs/trace.jsonl
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./agent:/app
+      - ./logs:/logs
+
   agent:
     build: ./agent
     container_name: education-crm-agent
@@ -47,6 +65,8 @@ services:
       CRM_API_URL: ${CRM_API_URL:-http://api:3000}
       CRM_USER_EMAIL: ${CRM_USER_EMAIL:-admin@school.example}
       CRM_USER_PASSWORD: ${CRM_USER_PASSWORD:-admin123}
+      # Read-only, and only used by capstone.py to verify what the agent wrote.
+      DATABASE_URL: postgres://crm:crm@db:5432/education_crm
     depends_on:
       api:
         condition: service_healthy
